@@ -21,3 +21,17 @@
   position: relative;
   z-index: 1;
 }
+
+/* Pulse highlight animation for sidebar navigation */
+@keyframes pulse-highlight {
+  0% { background-color: rgba(124, 58, 237, 0.3); }
+  50% { background-color: rgba(124, 58, 237, 0.6); }
+  100% { background-color: rgba(124, 58, 237, 0); }
+}
+
+.pulse-highlight {
+  animation: pulse-highlight 1.5s ease-in-out;
+  position: relative;
+  z-index: 5;
+  box-shadow: 0 0 8px rgba(124, 58, 237, 0.6);
+}
