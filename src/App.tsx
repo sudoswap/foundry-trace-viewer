@@ -36,6 +36,17 @@ const DarkEnhancedTraceViewer = () => {
     'bg-teal-900',
     'bg-cyan-900'
   ];
+  const textColors = [
+    'text-purple-300',
+    'text-yellow-300',
+    'text-green-300',
+    'text-pink-300',
+    'text-indigo-300',
+    'text-red-300',
+    'text-orange-300',
+    'text-teal-300',
+    'text-cyan-300'
+  ];
 
   // Process the file when it's uploaded
   const handleFileChange = (event) => {
@@ -288,7 +299,6 @@ const DarkEnhancedTraceViewer = () => {
       const match = content.match(/([A-Za-z0-9_]+)::([A-Za-z0-9_]+)\((.*)\)/);
       if (match) {
         const [fullMatch, contractName, functionName, args] = match;
-        const beforeMatch = content.substring(0, content.indexOf(fullMatch));
         const afterMatch = content.substring(content.indexOf(fullMatch) + fullMatch.length);
 
         // Handle multiple arguments by splitting by commas, but only at the top level
@@ -325,19 +335,15 @@ const DarkEnhancedTraceViewer = () => {
 
         return (
           <>
-            {beforeMatch && <React.Fragment>{beforeMatch}</React.Fragment>}
-            <span className="text-pink-300">{contractName}</span>
+            {`[${childCount}]` && <React.Fragment>{`[${childCount}]`} </React.Fragment>}
+            <span className="text-blue-300">{contractName}</span>
             <span className="text-gray-400">::</span>
-            <span className="text-yellow-300">{functionName}</span>
+            <span className="text-white">{functionName}</span>
             <span className="text-gray-400">(</span>
             {argsList.map((arg: string, index: number) => (
               <React.Fragment key={`arg-${index}`}>
                 {index > 0 && <span className="text-gray-400">, </span>}
-                {arg.startsWith('0x') ? (
-                  <span className="text-cyan-400">{arg}</span>
-                ) : (
-                  <span className="text-amber-300">{arg}</span>
-                )}
+                {<span className={`${textColors[index % textColors.length]}`}>{arg}</span>}
               </React.Fragment>
             ))}
             <span className="text-gray-400">)</span>
@@ -346,120 +352,7 @@ const DarkEnhancedTraceViewer = () => {
         );
       }
       return content;
-    } else if (content.match(/\[\d+\]/) && content.match(/([A-Za-z0-9_]+)::([A-Za-z0-9_]+)\((.*)\)/)) {
-      // Special case: both gas usage and function call in the same line
-      // First, replace the gas value with the number of direct children
-      const childCountBracket = `[${childCount}]`;
-      const modifiedContent = content.replace(/\[\d+\]/, childCountBracket);
-
-      // Extract the function call parts
-      const functionMatch = modifiedContent.match(/([A-Za-z0-9_]+)::([A-Za-z0-9_]+)\((.*)\)/);
-      if (functionMatch) {
-        const [fullMatch, contractName, functionName, args] = functionMatch;
-
-        // Split the content into parts: before bracket, bracket, between bracket and function, function, after function
-        const bracketMatch = modifiedContent.match(/\[\d+\]/);
-        if (!bracketMatch) return modifiedContent; // Shouldn't happen
-
-        const bracketPart = bracketMatch[0];
-        const bracketIndex = modifiedContent.indexOf(bracketPart);
-        const functionIndex = modifiedContent.indexOf(fullMatch);
-
-        const beforeBracket = modifiedContent.substring(0, bracketIndex);
-        const betweenBracketAndFunction = modifiedContent.substring(bracketIndex + bracketPart.length, functionIndex);
-        const afterFunction = modifiedContent.substring(functionIndex + fullMatch.length);
-
-        // Process function arguments
-        const processArgs = (argsStr: string): string[] => {
-          const result = [];
-          let currentArg = '';
-          let parenDepth = 0;
-
-          for (let i = 0; i < argsStr.length; i++) {
-            const char = argsStr[i];
-            if (char === '(' || char === '[' || char === '{') {
-              parenDepth++;
-              currentArg += char;
-            } else if (char === ')' || char === ']' || char === '}') {
-              parenDepth--;
-              currentArg += char;
-            } else if (char === ',' && parenDepth === 0) {
-              result.push(currentArg.trim());
-              currentArg = '';
-            } else {
-              currentArg += char;
-            }
-          }
-
-          if (currentArg.trim()) {
-            result.push(currentArg.trim());
-          }
-
-          return result;
-        };
-
-        const argsList = processArgs(args);
-
-        // Render with all parts colored appropriately
-        return (
-          <>
-            {beforeBracket && <span>{beforeBracket}</span>}
-            <span className="text-purple-400 font-bold">{bracketPart}</span>
-            {betweenBracketAndFunction && <span>{betweenBracketAndFunction}</span>}
-            <span className="text-pink-300">{contractName}</span>
-            <span className="text-gray-400">::</span>
-            <span className="text-yellow-300">{functionName}</span>
-            <span className="text-gray-400">(</span>
-            {argsList.map((arg: string, index: number) => (
-              <React.Fragment key={`arg-${index}`}>
-                {index > 0 && <span className="text-gray-400">, </span>}
-                {arg.startsWith('0x') ? (
-                  <span className="text-cyan-400">{arg}</span>
-                ) : (
-                  <span className="text-amber-300">{arg}</span>
-                )}
-              </React.Fragment>
-            ))}
-            <span className="text-gray-400">)</span>
-            {afterFunction && <span>{afterFunction}</span>}
-          </>
-        );
-      }
-
-      return modifiedContent;
-    } else if (content.match(/\[\d+\]/)) {
-      // Function calls with gas usage - replace with child count
-      // First, replace the gas value with the number of direct children
-      const childCountBracket = `[${childCount}]`;
-      const modifiedContent = content.replace(/\[\d+\]/, childCountBracket);
-
-      // Now split and highlight as before
-      const parts = modifiedContent.split(/(\[\d+\])/);
-      return (
-        <>
-          {parts.map((part: string, index: number) => {
-            // Create a unique key for each part
-            const partKey = `part-${index}-${part.length}`;
-
-            if (part.match(/\[\d+\]/)) {
-              return <span key={partKey} className="text-purple-400 font-bold">{part}</span>;
-            } else if (part.includes('staticcall')) {
-              return <span key={partKey} className="text-blue-400">{part}</span>;
-            } else if (part.includes('[call]')) {
-              return <span key={partKey} className="text-blue-300">{part}</span>;
-            } else if (part.includes('[delegatecall]')) {
-              return <span key={partKey} className="text-blue-200">{part}</span>;
-            } else if (part.includes('[Return]')) {
-              return <span key={partKey} className="text-green-400">{part}</span>;
-            } else if (part.includes('[Stop]')) {
-              return <span key={partKey} className="text-red-400">{part}</span>;
-            } else {
-              return <React.Fragment key={partKey}>{part}</React.Fragment>;
-            }
-          })}
-        </>
-      );
-    } else if (content.includes('0x')) {
+    }else if (content.includes('0x')) {
       // Highlight addresses and hashes
       const parts = content.split(/(0x[a-fA-F0-9]+)/);
       return (
