@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import './trace-item.css';
 
 const DarkEnhancedTraceViewer = () => {
   const [file, setFile] = useState(null);
@@ -10,6 +11,7 @@ const DarkEnhancedTraceViewer = () => {
 
   // Dark mode color palette for different call depths
   const depthColors = [
+    'bg-gray-950',
     'bg-blue-950',
     'bg-green-950',
     'bg-purple-950',
@@ -21,9 +23,19 @@ const DarkEnhancedTraceViewer = () => {
     'bg-teal-950',
     'bg-cyan-950'
   ];
-
-  // Alternating row darkness
-  const rowDarkness = ['bg-opacity-40', 'bg-opacity-20'];
+  const depthColors2 = [
+    'bg-gray-900',
+    'bg-blue-900',
+    'bg-green-900',
+    'bg-purple-900',
+    'bg-yellow-900',
+    'bg-pink-900',
+    'bg-indigo-900',
+    'bg-red-900',
+    'bg-orange-900',
+    'bg-teal-900',
+    'bg-cyan-900'
+  ];
 
   // Process the file when it's uploaded
   const handleFileChange = (event) => {
@@ -44,10 +56,13 @@ const DarkEnhancedTraceViewer = () => {
       const traceSections = text.split(/Traces:\s*/g).filter(Boolean);
 
       const allTraces = [];
+      let globalLineId = 0; // Global counter for unique IDs across all sections
 
       for (let section of traceSections) {
         const lines = section.split('\n');
-        const sectionTraces = parseTraceLines(lines);
+        const sectionTraces = parseTraceLines(lines, globalLineId);
+        // Update the global line ID counter based on the traces we've processed
+        globalLineId += lines.length;
         allTraces.push(...sectionTraces);
       }
 
@@ -82,10 +97,10 @@ const DarkEnhancedTraceViewer = () => {
   };
 
   // Parse individual trace lines into a hierarchical structure
-  const parseTraceLines = (lines) => {
+  const parseTraceLines = (lines, startLineId = 0) => {
     const rootTraces = [];
     let currentStack = [];
-    let lineId = 0;
+    let lineId = startLineId;
 
     for (let line of lines) {
       // Skip empty lines
@@ -243,9 +258,9 @@ const DarkEnhancedTraceViewer = () => {
   };
 
   // Syntax highlighting for different types of trace content
-  const highlightSyntax = (content) => {
+  const highlightSyntax = (content: string, childCount: number) => {
     // Function to create spans with appropriate classes
-    const createSpan = (text, className) => (
+    const createSpan = (text: string, className: string) => (
       <span key={Math.random()} className={className}>{text}</span>
     );
 
@@ -268,26 +283,178 @@ const DarkEnhancedTraceViewer = () => {
           {createSpan(parts.slice(1).join('emit '), 'text-yellow-400')}
         </>
       );
+    } else if (content.match(/([A-Za-z0-9_]+)::([A-Za-z0-9_]+)\((.*)\)/)) {
+      // Function calls with contract::function(args) format
+      const match = content.match(/([A-Za-z0-9_]+)::([A-Za-z0-9_]+)\((.*)\)/);
+      if (match) {
+        const [fullMatch, contractName, functionName, args] = match;
+        const beforeMatch = content.substring(0, content.indexOf(fullMatch));
+        const afterMatch = content.substring(content.indexOf(fullMatch) + fullMatch.length);
+
+        // Handle multiple arguments by splitting by commas, but only at the top level
+        // (not inside nested parentheses)
+        const processArgs = (argsStr: string): string[] => {
+          const result = [];
+          let currentArg = '';
+          let parenDepth = 0;
+
+          for (let i = 0; i < argsStr.length; i++) {
+            const char = argsStr[i];
+            if (char === '(' || char === '[' || char === '{') {
+              parenDepth++;
+              currentArg += char;
+            } else if (char === ')' || char === ']' || char === '}') {
+              parenDepth--;
+              currentArg += char;
+            } else if (char === ',' && parenDepth === 0) {
+              result.push(currentArg.trim());
+              currentArg = '';
+            } else {
+              currentArg += char;
+            }
+          }
+
+          if (currentArg.trim()) {
+            result.push(currentArg.trim());
+          }
+
+          return result;
+        };
+
+        const argsList = processArgs(args);
+
+        return (
+          <>
+            {beforeMatch && <React.Fragment>{beforeMatch}</React.Fragment>}
+            <span className="text-pink-300">{contractName}</span>
+            <span className="text-gray-400">::</span>
+            <span className="text-yellow-300">{functionName}</span>
+            <span className="text-gray-400">(</span>
+            {argsList.map((arg: string, index: number) => (
+              <React.Fragment key={`arg-${index}`}>
+                {index > 0 && <span className="text-gray-400">, </span>}
+                {arg.startsWith('0x') ? (
+                  <span className="text-cyan-400">{arg}</span>
+                ) : (
+                  <span className="text-amber-300">{arg}</span>
+                )}
+              </React.Fragment>
+            ))}
+            <span className="text-gray-400">)</span>
+            {afterMatch && <React.Fragment>{afterMatch}</React.Fragment>}
+          </>
+        );
+      }
+      return content;
+    } else if (content.match(/\[\d+\]/) && content.match(/([A-Za-z0-9_]+)::([A-Za-z0-9_]+)\((.*)\)/)) {
+      // Special case: both gas usage and function call in the same line
+      // First, replace the gas value with the number of direct children
+      const childCountBracket = `[${childCount}]`;
+      const modifiedContent = content.replace(/\[\d+\]/, childCountBracket);
+
+      // Extract the function call parts
+      const functionMatch = modifiedContent.match(/([A-Za-z0-9_]+)::([A-Za-z0-9_]+)\((.*)\)/);
+      if (functionMatch) {
+        const [fullMatch, contractName, functionName, args] = functionMatch;
+
+        // Split the content into parts: before bracket, bracket, between bracket and function, function, after function
+        const bracketMatch = modifiedContent.match(/\[\d+\]/);
+        if (!bracketMatch) return modifiedContent; // Shouldn't happen
+
+        const bracketPart = bracketMatch[0];
+        const bracketIndex = modifiedContent.indexOf(bracketPart);
+        const functionIndex = modifiedContent.indexOf(fullMatch);
+
+        const beforeBracket = modifiedContent.substring(0, bracketIndex);
+        const betweenBracketAndFunction = modifiedContent.substring(bracketIndex + bracketPart.length, functionIndex);
+        const afterFunction = modifiedContent.substring(functionIndex + fullMatch.length);
+
+        // Process function arguments
+        const processArgs = (argsStr: string): string[] => {
+          const result = [];
+          let currentArg = '';
+          let parenDepth = 0;
+
+          for (let i = 0; i < argsStr.length; i++) {
+            const char = argsStr[i];
+            if (char === '(' || char === '[' || char === '{') {
+              parenDepth++;
+              currentArg += char;
+            } else if (char === ')' || char === ']' || char === '}') {
+              parenDepth--;
+              currentArg += char;
+            } else if (char === ',' && parenDepth === 0) {
+              result.push(currentArg.trim());
+              currentArg = '';
+            } else {
+              currentArg += char;
+            }
+          }
+
+          if (currentArg.trim()) {
+            result.push(currentArg.trim());
+          }
+
+          return result;
+        };
+
+        const argsList = processArgs(args);
+
+        // Render with all parts colored appropriately
+        return (
+          <>
+            {beforeBracket && <span>{beforeBracket}</span>}
+            <span className="text-purple-400 font-bold">{bracketPart}</span>
+            {betweenBracketAndFunction && <span>{betweenBracketAndFunction}</span>}
+            <span className="text-pink-300">{contractName}</span>
+            <span className="text-gray-400">::</span>
+            <span className="text-yellow-300">{functionName}</span>
+            <span className="text-gray-400">(</span>
+            {argsList.map((arg: string, index: number) => (
+              <React.Fragment key={`arg-${index}`}>
+                {index > 0 && <span className="text-gray-400">, </span>}
+                {arg.startsWith('0x') ? (
+                  <span className="text-cyan-400">{arg}</span>
+                ) : (
+                  <span className="text-amber-300">{arg}</span>
+                )}
+              </React.Fragment>
+            ))}
+            <span className="text-gray-400">)</span>
+            {afterFunction && <span>{afterFunction}</span>}
+          </>
+        );
+      }
+
+      return modifiedContent;
     } else if (content.match(/\[\d+\]/)) {
-      // Function calls with gas usage
-      const parts = content.split(/(\[\d+\])/);
+      // Function calls with gas usage - replace with child count
+      // First, replace the gas value with the number of direct children
+      const childCountBracket = `[${childCount}]`;
+      const modifiedContent = content.replace(/\[\d+\]/, childCountBracket);
+
+      // Now split and highlight as before
+      const parts = modifiedContent.split(/(\[\d+\])/);
       return (
         <>
-          {parts.map((part, i) => {
+          {parts.map((part: string, index: number) => {
+            // Create a unique key for each part
+            const partKey = `part-${index}-${part.length}`;
+
             if (part.match(/\[\d+\]/)) {
-              return createSpan(part, 'text-purple-400');
+              return <span key={partKey} className="text-purple-400 font-bold">{part}</span>;
             } else if (part.includes('staticcall')) {
-              return createSpan(part, 'text-blue-400');
+              return <span key={partKey} className="text-blue-400">{part}</span>;
             } else if (part.includes('[call]')) {
-              return createSpan(part, 'text-blue-300');
+              return <span key={partKey} className="text-blue-300">{part}</span>;
             } else if (part.includes('[delegatecall]')) {
-              return createSpan(part, 'text-blue-200');
+              return <span key={partKey} className="text-blue-200">{part}</span>;
             } else if (part.includes('[Return]')) {
-              return createSpan(part, 'text-green-400');
+              return <span key={partKey} className="text-green-400">{part}</span>;
             } else if (part.includes('[Stop]')) {
-              return createSpan(part, 'text-red-400');
+              return <span key={partKey} className="text-red-400">{part}</span>;
             } else {
-              return part;
+              return <React.Fragment key={partKey}>{part}</React.Fragment>;
             }
           })}
         </>
@@ -297,11 +464,14 @@ const DarkEnhancedTraceViewer = () => {
       const parts = content.split(/(0x[a-fA-F0-9]+)/);
       return (
         <>
-          {parts.map((part, i) => {
+          {parts.map((part: string, index: number) => {
+            // Create a unique key for each part
+            const partKey = `addr-${index}-${part.length}`;
+
             if (part.match(/0x[a-fA-F0-9]+/)) {
-              return createSpan(part, 'text-cyan-400');
+              return <span key={partKey} className="text-cyan-400">{part}</span>;
             } else {
-              return part;
+              return <React.Fragment key={partKey}>{part}</React.Fragment>;
             }
           })}
         </>
@@ -319,22 +489,27 @@ const DarkEnhancedTraceViewer = () => {
     const isHighlighted = highlightedItems.has(trace.id);
 
     // Get background color based on call depth instead of stack ID
-    const depthColor = depthColors[trace.depth % depthColors.length];
-
-    // Alternate row darkness for better readability between adjacent rows
-    const rowColor = rowDarkness[lineIndex % rowDarkness.length];
+    let depthColorLookup = depthColors;
+    if (lineIndex % 2 === 0) {
+      depthColorLookup = depthColors2;
+    }
+    const depthColor = depthColorLookup[trace.depth % depthColors.length];
 
     // Special styling for returns
     const returnStyle = trace.isReturn ? 'border-l-2 border-green-500' : '';
 
+    // Create a more unique key by combining the trace ID with its depth and content hash
+    const contentHash = trace.content.length.toString(16);
+    const uniqueKey = `${trace.id}-${trace.depth}-${contentHash}`;
+
     return (
       <div
-        key={trace.id}
-        className={`trace-item ${depthColor} ${rowColor} ${returnStyle} ${isHighlighted ? 'bg-purple-700 !bg-opacity-40' : ''}`}
+        key={uniqueKey}
+        className={`trace-item ${depthColor} ${returnStyle} ${isHighlighted ? 'bg-purple-700 !bg-opacity-40' : ''}`}
       >
-        <div className="flex">
+        <div className="flex break-all">
           <div
-            className="trace-header flex items-start py-1 hover:bg-gray-700 hover:bg-opacity-50 cursor-pointer flex-grow"
+            className="trace-header flex items-start py-1 hover:bg-gray-900 hover:bg-opacity-50 cursor-pointer flex-grow"
             onClick={() => hasChildren && toggleExpand(trace.id)}
             style={{ paddingLeft: `${trace.depth * 20}px` }}
           >
@@ -345,7 +520,7 @@ const DarkEnhancedTraceViewer = () => {
             )}
             {!hasChildren && <span className="mr-2 w-4"></span>}
             <div className="font-mono text-sm whitespace-pre-wrap text-gray-200">
-              {highlightSyntax(trace.content)}
+              {highlightSyntax(trace.content, trace.children ? trace.children.length : 0)}
             </div>
           </div>
 
@@ -353,7 +528,12 @@ const DarkEnhancedTraceViewer = () => {
 
         {hasChildren && isExpanded && (
           <div className="trace-children">
-            {trace.children.map((child, idx) => renderTrace(child, lineIndex + idx + 1))}
+            {trace.children.map((child, idx) => {
+              // Create a unique key for each child element
+              const childKey = `child-${child.id}-${idx}`;
+              // Pass the current trace's index as the parent index for the child
+              return <React.Fragment key={childKey}>{renderTrace(child, lineIndex + idx + 1)}</React.Fragment>;
+            })}
           </div>
         )}
       </div>
@@ -430,15 +610,23 @@ const DarkEnhancedTraceViewer = () => {
 
           <div className="trace-container border border-gray-700 rounded-md overflow-auto font-mono text-sm">
             <div className="legend p-2 bg-gray-800 border-b border-gray-700 flex flex-wrap gap-2">
-              <span className="text-sm font-bold">Call Depth Colors:</span>
-              {depthColors.slice(0, 5).map((color, index) => (
-                <span key={index} className={`${color} px-2 py-1 rounded text-xs`}>
-                  Depth {index}
-                </span>
-              ))}
+              <div className="flex flex-col w-full mb-2">
+                <span className="text-sm font-bold">Call Depth Colors:</span>
+                <span className="text-xs text-gray-400"><span className="text-purple-400 font-bold">[brackets]</span> show the number of direct children</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {depthColors.slice(0, 5).map((color, index) => (
+                  <span key={index} className={`${color} px-2 py-1 rounded text-xs`}>
+                    Depth {index}
+                  </span>
+                ))}
+              </div>
             </div>
             <div className="p-4">
-              {traces.map((trace, index) => renderTrace(trace, index))}
+              {traces.map((trace, index) => {
+                // For top-level traces, we pass -1 as the parent index to indicate it's a root trace
+                return renderTrace(trace, index);
+              })}
             </div>
           </div>
         </>

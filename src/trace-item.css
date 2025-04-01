@@ -1,0 +1,23 @@
+/* CSS for trace items with background-only filter effects */
+.trace-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.trace-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+  filter: hue-rotate(var(--hue-rotate, 0deg)) brightness(var(--brightness, 1));
+  background: inherit;
+}
+
+.trace-item > * {
+  position: relative;
+  z-index: 1;
+}
