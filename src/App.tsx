@@ -44,19 +44,6 @@ const DarkEnhancedTraceViewer = () => {
     'bg-teal-950',
     'bg-cyan-950'
   ];
-  const depthColors2 = [
-    'bg-gray-900',
-    'bg-blue-900',
-    'bg-green-900',
-    'bg-purple-900',
-    'bg-yellow-900',
-    'bg-pink-900',
-    'bg-indigo-900',
-    'bg-red-900',
-    'bg-orange-900',
-    'bg-teal-900',
-    'bg-cyan-900'
-  ];
   const textColors = [
     'text-purple-300',
     'text-yellow-300',
@@ -482,12 +469,8 @@ const DarkEnhancedTraceViewer = () => {
     const isExpanded = expandedItems.has(trace.id);
     const isHighlighted = highlightedItems.has(trace.id);
 
-    // Get background color based on call depth instead of stack ID
-    let depthColorLookup = depthColors;
-    if (lineIndex % 2 === 0) {
-      depthColorLookup = depthColors;
-    }
-    const depthColor = depthColorLookup[trace.depth % depthColors.length];
+    // Get background color based on call depth
+    const depthColor = depthColors[trace.depth % depthColors.length];
 
     // Special styling for returns
     const returnStyle = trace.isReturn ? 'border-l-2 border-green-500' : '';
@@ -600,44 +583,31 @@ const DarkEnhancedTraceViewer = () => {
       <div className="flex-1 ml-64 p-4">
         <h1 className="text-2xl font-bold mb-4">Foundry Trace Viewer</h1>
 
-        <div className="mb-6">
-          <div className="bg-gray-800 p-3 rounded-md shadow border border-blue-700 inline-block">
-            <label className="block">
-              <span className="text-gray-100 font-medium text-sm flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                </svg>
-                Upload Trace File
-              </span>
-              <div className="mt-1 flex">
-                <input
-                  type="file"
-                  id="file-upload"
-                  onChange={handleFileChange}
-                  className="hidden"
-                  accept=".txt,.log,.trace"
-                />
-                <label
-                  htmlFor="file-upload"
-                  className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-medium py-1 px-3 rounded-l flex items-center justify-center transition-colors duration-200 text-sm"
-                >
-                  <span>Choose File</span>
-                </label>
-                <div className="bg-gray-800 text-gray-300 py-1 px-3 rounded-r border-l border-blue-800 truncate max-w-xs text-sm">
-                  {file ? file.name : 'No file selected'}
-                </div>
-              </div>
-            </label>
-          </div>
-        </div>
-
       {loading && (
         <div className="text-blue-400">Loading traces...</div>
       )}
 
-      {traces.length > 0 && (
+      {(
         <>
-          <div className="sticky top-0 z-20 flex justify-between mb-2 py-1 bg-gray-900 border-b border-gray-700 shadow-md">
+          <div className="sticky top-0 z-20 flex justify-between items-center mb-2 py-1 bg-gray-900 border-b border-gray-700 shadow-md">
+          <div className="flex items-center">
+              <input
+                type="file"
+                id="file-upload"
+                onChange={handleFileChange}
+                className="hidden"
+                accept=".txt,.log,.trace"
+              />
+              <label
+                htmlFor="file-upload"
+                className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-medium py-0.5 px-3 rounded-l flex items-center justify-center transition-colors duration-200 text-sm"
+              >
+                <span>📄 Upload</span>
+              </label>
+              <div className="bg-gray-800 text-gray-300 py-0.5 px-3 rounded-r border-l border-blue-800 truncate max-w-[150px] text-sm">
+                {file ? file.name : 'No file selected'}
+              </div>
+            </div>
             <div className="flex space-x-4">
               <button
                 onClick={expandAll}
