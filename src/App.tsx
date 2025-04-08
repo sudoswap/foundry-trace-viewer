@@ -11,6 +11,7 @@ interface Trace {
   functionName: string | null;
   callType: string | null;
   isReturn: boolean;
+  isEvent: boolean;
   raw: string;
   rowIndex: number;
   parent?: Trace;
@@ -164,6 +165,9 @@ const DarkEnhancedTraceViewer = () => {
       // Check if this is a return line
       const isReturn = content.includes('← [Return]') || content.includes('← [Stop]');
 
+      // Check if this is an event emission
+      const isEvent = content.includes('emit ');
+
       // Create trace object with unique ID and parsed data
       const trace: Trace = {
         id: `trace-${lineId++}`,
@@ -174,6 +178,7 @@ const DarkEnhancedTraceViewer = () => {
         functionName,
         callType,
         isReturn,
+        isEvent,
         raw: content,
         rowIndex: lineId // For alternating row colors
       };
@@ -379,7 +384,7 @@ const DarkEnhancedTraceViewer = () => {
       return (
         <>
           {createSpan(parts[0] + 'emit ', 'text-gray-400')}
-          {createSpan(parts.slice(1).join('emit '), 'text-yellow-400')}
+          {createSpan(parts.slice(1).join('emit '), 'text-white')}
         </>
       );
     } else if (content.match(/([A-Za-z0-9_]+)::([A-Za-z0-9_]+)\((.*)\)/)) {
@@ -469,8 +474,13 @@ const DarkEnhancedTraceViewer = () => {
     const isExpanded = expandedItems.has(trace.id);
     const isHighlighted = highlightedItems.has(trace.id);
 
-    // Get background color based on call depth
-    const depthColor = depthColors[trace.depth % depthColors.length];
+    // Get background color based on call depth or event type
+    let depthColor = depthColors[trace.depth % depthColors.length];
+
+    // Override with yellow background for event emissions
+    if (trace.isEvent) {
+      depthColor = 'bg-yellow-800';
+    }
 
     // Special styling for returns
     const returnStyle = trace.isReturn ? 'border-l-2 border-green-500' : '';
@@ -537,7 +547,11 @@ const DarkEnhancedTraceViewer = () => {
         </div>
         <div className="space-y-1">
           {lastExpandedTrace.children.map((child: Trace, index: number) => {
-            const depthColor = depthColors[child.depth % depthColors.length];
+            let depthColor = depthColors[child.depth % depthColors.length];
+            // Override with yellow background for event emissions
+            if (child.isEvent) {
+              depthColor = 'bg-yellow-800';
+            }
             const returnStyle = child.isReturn ? 'border-l-2 border-green-500' : '';
             // Create a more unique key by adding a timestamp or random value
             const uniqueSidebarKey = `sidebar-${child.id}-${index}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -637,7 +651,6 @@ const DarkEnhancedTraceViewer = () => {
             <div className="legend p-2 bg-gray-800 border-b border-gray-700 flex flex-wrap gap-2">
               <div className="flex flex-col w-full mb-2">
                 <span className="text-sm font-bold">Call Depth Colors:</span>
-                <span className="text-xs text-gray-400"><span className="text-purple-400 font-bold">[brackets]</span> show the number of direct children</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {depthColors.slice(0, 5).map((color, index) => (
