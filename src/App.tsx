@@ -384,7 +384,7 @@ const DarkEnhancedTraceViewer = () => {
       return (
         <>
           {createSpan(parts[0] + 'emit ', 'text-gray-400')}
-          {createSpan(parts.slice(1).join('emit '), 'text-white')}
+          {createSpan(parts.slice(1).join('emit '), 'text-black event-text')}
         </>
       );
     } else if (content.match(/([A-Za-z0-9_]+)::([A-Za-z0-9_]+)\((.*)\)/)) {
@@ -479,7 +479,7 @@ const DarkEnhancedTraceViewer = () => {
 
     // Override with yellow background for event emissions
     if (trace.isEvent) {
-      depthColor = 'bg-yellow-800';
+      depthColor = 'bg-yellow-400 text-black border border-dotted border-blue-900 italic';
     }
 
     // Special styling for returns
@@ -550,7 +550,7 @@ const DarkEnhancedTraceViewer = () => {
             let depthColor = depthColors[child.depth % depthColors.length];
             // Override with yellow background for event emissions
             if (child.isEvent) {
-              depthColor = 'bg-yellow-800';
+              depthColor = 'bg-yellow-400 text-black border border-dotted border-white border-3 italic';
             }
             const returnStyle = child.isReturn ? 'border-l-2 border-green-500' : '';
             // Create a more unique key by adding a timestamp or random value
@@ -560,7 +560,7 @@ const DarkEnhancedTraceViewer = () => {
               <div
                 key={uniqueSidebarKey}
                 onClick={() => scrollToTrace(child.id)}
-                className={`${depthColor} ${returnStyle} p-2 rounded text-xs cursor-pointer hover:bg-gray-700 truncate mb-1`}
+                className={`${depthColor} ${returnStyle} p-2 rounded text-xs cursor-pointer hover:bg-gray-700 sidebar-item truncate mb-1`}
                 title={child.content}
               >
                 {highlightSyntax(child.content, child.children ? child.children.length : 0)}

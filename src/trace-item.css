@@ -22,6 +22,23 @@
   z-index: 1;
 }
 
+/* Hover effect for trace items */
+.trace-header:hover {
+  color: white !important;
+}
+
+.trace-header:hover .event-text {
+  color: white !important;
+}
+
+.sidebar-item:hover {
+  color: white !important;
+}
+
+.sidebar-item:hover .event-text {
+  color: white !important;
+}
+
 /* Pulse highlight animation for sidebar navigation */
 @keyframes pulse-highlight {
   0% { background-color: rgba(124, 58, 237, 0.3); }
