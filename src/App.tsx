@@ -27,6 +27,8 @@ const DarkEnhancedTraceViewer = () => {
   const [highlightedItems, setHighlightedItems] = useState<Set<string>>(new Set());
   const [lastExpandedTrace, setLastExpandedTrace] = useState<Trace | null>(null);
   const [expandedHistory, setExpandedHistory] = useState<Trace[]>([]);
+  const [searchMode, setSearchMode] = useState(false);
+  const [filteredTraces, setFilteredTraces] = useState<Trace[]>([]);
 
   // Refs for scrolling to elements
   const traceRefs = useRef<Record<string, HTMLDivElement>>({});
@@ -326,39 +328,45 @@ const DarkEnhancedTraceViewer = () => {
 
     if (!term.trim()) {
       setHighlightedItems(new Set());
+      setSearchMode(false);
+      setFilteredTraces([]);
       return;
     }
 
+    // Set search mode to true when we have a search term
+    setSearchMode(true);
+
     const matches = new Set<string>();
 
-    const findMatches = (trace: Trace) => {
-      if (trace.content.toLowerCase().includes(term.toLowerCase())) {
-        matches.add(trace.id);
-
-        // Also expand parents
-        let currentTrace = trace;
-        while (currentTrace && currentTrace.parent) {
-          matches.add(currentTrace.parent.id);
-          currentTrace = currentTrace.parent;
+    // Flatten all traces to find matches at any level
+    const flattenTraces = (traces: Trace[]): Trace[] => {
+      return traces.reduce((acc: Trace[], trace: Trace) => {
+        // Create a copy of the trace without children to avoid nesting
+        if (trace.content.toLowerCase().includes(term.toLowerCase())) {
+          const traceCopy = { ...trace, children: [] };
+          acc.push(traceCopy);
+          matches.add(trace.id);
         }
-      }
 
-      trace.children.forEach((child: Trace) => {
-        // Set parent reference for children
-        child.parent = trace;
-        findMatches(child);
-      });
+        // Continue searching in children
+        if (trace.children && trace.children.length > 0) {
+          // Set parent reference for children
+          trace.children.forEach(child => {
+            child.parent = trace;
+          });
+          acc.push(...flattenTraces(trace.children));
+        }
+
+        return acc;
+      }, []);
     };
 
-    traces.forEach(findMatches);
-    setHighlightedItems(matches);
+    // Find all matching traces
+    const allMatchingTraces = flattenTraces(traces);
 
-    // Expand items with matches
-    setExpandedItems(prev => {
-      const newSet = new Set(prev);
-      matches.forEach(id => newSet.add(id));
-      return newSet;
-    });
+    // Update state with matching traces
+    setFilteredTraces(allMatchingTraces);
+    setHighlightedItems(matches);
   };
 
   // Syntax highlighting for different types of trace content
@@ -516,7 +524,7 @@ const DarkEnhancedTraceViewer = () => {
 
         </div>
 
-        {hasChildren && isExpanded && (
+        {hasChildren && isExpanded && !searchMode && (
           <div className="trace-children">
             {trace.children.map((child: Trace, idx: number) => {
               // Create a more unique key for each child element
@@ -623,27 +631,55 @@ const DarkEnhancedTraceViewer = () => {
               </div>
             </div>
             <div className="flex space-x-4">
-              <button
-                onClick={expandAll}
-                className="px-2 py-0.5 bg-blue-700 text-white rounded hover:bg-blue-600 text-sm flex items-center"
-              >
-                🔍 Expand All
-              </button>
-              <button
-                onClick={collapseAll}
-                className="px-2 py-0.5 bg-gray-700 text-white rounded hover:bg-gray-600 text-sm flex items-center"
-              >
-                🔼 Collapse to Root
-              </button>
+              {!searchMode && (
+                <>
+                  <button
+                    onClick={expandAll}
+                    className="px-2 py-0.5 bg-blue-700 text-white rounded hover:bg-blue-600 text-sm flex items-center"
+                  >
+                    🔍 Expand All
+                  </button>
+                  <button
+                    onClick={collapseAll}
+                    className="px-2 py-0.5 bg-gray-700 text-white rounded hover:bg-gray-600 text-sm flex items-center"
+                  >
+                    🔼 Collapse to Root
+                  </button>
+                </>
+              )}
+              {searchMode && (
+                <div className="px-2 py-0.5 bg-yellow-800 text-white rounded text-sm flex items-center">
+                  🔎 Search Mode
+                </div>
+              )}
             </div>
-            <div className="w-1/3">
+            <div className="w-1/3 relative">
               <input
                 type="text"
                 placeholder="Search traces..."
                 value={searchTerm}
                 onChange={handleSearch}
-                className="w-full px-2 py-1 border border-gray-700 bg-gray-800 rounded text-gray-200 text-sm"
+                className={`w-full px-2 py-1 pl-2 pr-8 border ${searchMode ? 'border-yellow-500' : 'border-gray-700'} bg-gray-800 rounded text-gray-200 text-sm`}
               />
+              {searchTerm && (
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSearchMode(false);
+                    setFilteredTraces([]);
+                    setHighlightedItems(new Set());
+                  }}
+                  className="absolute right-2 top-1 text-gray-400 hover:text-white"
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+              {searchMode && filteredTraces.length > 0 && (
+                <div className="absolute right-8 top-1 text-xs text-yellow-500">
+                  {filteredTraces.length} match{filteredTraces.length !== 1 ? 'es' : ''}
+                </div>
+              )}
             </div>
           </div>
 
@@ -661,10 +697,24 @@ const DarkEnhancedTraceViewer = () => {
               </div>
             </div>
             <div className="p-4">
-              {traces.map((trace, index) => {
-                // For top-level traces, we pass -1 as the parent index to indicate it's a root trace
-                return renderTrace(trace, index);
-              })}
+              {searchMode ? (
+                filteredTraces.length > 0 ? (
+                  // When in search mode with results, render only the filtered traces
+                  filteredTraces.map((trace, index) => {
+                    return renderTrace(trace, index);
+                  })
+                ) : (
+                  // When in search mode with no results
+                  <div className="text-gray-400 text-center py-4">
+                    No traces found matching "{searchTerm}"
+                  </div>
+                )
+              ) : (
+                // Normal mode - render all traces
+                traces.map((trace, index) => {
+                  return renderTrace(trace, index);
+                })
+              )}
             </div>
           </div>
         </>
