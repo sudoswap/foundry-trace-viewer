@@ -6,3 +6,5 @@ view/expand foundry traces
 bun install
 bun run vite
 ```
+
+<!-- diagnostic build marker -->
